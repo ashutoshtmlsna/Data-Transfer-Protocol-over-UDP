@@ -1,0 +1,6 @@
+<Received> <Seq #: 0> <LFR: -1> <LAF:0> <Time: 1586683105>
+<SEND> <ACK #: 0> <LFR: 0> <LAF: 1> <Time: 1586683105>
+<Received> <Seq #: 1> <LFR: 0> <LAF:1> <Time: 1586683105>
+<SEND> <ACK #: 1> <LFR: 1> <LAF: 2> <Time: 1586683105>
+<Received> <Seq #: 2> <LFR: 1> <LAF:2> <Time: 1586683105>
+<SEND> <ACK #: 2> <LFR: 2> <LAF: 3> <Time: 1586683105>
