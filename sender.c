@@ -9,7 +9,7 @@
 
 #define ECHOMAX         8 //1024     /* Longest string to echo */
 #define TIMEOUT_SECS    2       /* Seconds between retransmits */
-#define MAXTRIES        35       /* Tries before giving up */
+#define MAXTRIES        5       /* Tries before giving up */
 
 int tries=0;   /* Count of times sent - GLOBAL for signal-handler access */
 
@@ -98,13 +98,14 @@ int main(int argc, char *argv[])
     else
         echoServPort = 7;  /* 7 is well-known port for echo service */
 
-    /*if ((echoStringLen = strlen(echoString)) > ECHOMAX)
-        DieWithError("Echo word too long");*/
 
     if (argc == 4)
         echoString = argv[3];  /* Second arg: string to echo */
     else
-        echoString = "We will get through this. We will get through this together. Even an invisible thing can create such a devastating damage to human civilization. High Time to think about the development modality we have been following.";  /* some cosntant string */
+        echoString = "We will get through this. We will get through this together."; //Even an invisible thing can create such a devastating damage to human civilization. High Time to think about the development modality we have been following.";  /* some cosntant string */
+    
+    /*if ((echoStringLen = strlen(echoString)) > ECHOMAX)
+        DieWithError("Echo word too long");*/
 
     /* Create a best-effort datagram socket using UDP */
     if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
@@ -144,6 +145,7 @@ int main(int argc, char *argv[])
     int numPacket = 10;  //(sizeof(echoString) / 8) + 1;
     int finalPktsize = ECHOMAX; //sizeof(echoString) % 8;
     int i = 0;
+    int j = 0;
     
     char seq[4]; //seq number
     char payloadSize[5]; //size of data in payload
@@ -151,14 +153,8 @@ int main(int argc, char *argv[])
     char payload[ECHOMAX]; //payload to be sent
     char head[9];
     char closingCount = 0; //counter to keep track of lost final ack
-
-    /* Send the string to the server
-    if (sendto(sock, echoString, echoStringLen, 0, (struct sockaddr *)
-               &echoServAddr, sizeof(echoServAddr)) != echoStringLen)
-        DieWithError("sendto() sent a different number of bytes than expected");*/
   
     /* Get a response */
-    
     fromSize = sizeof(fromAddr);
     
     while (1){
@@ -172,7 +168,7 @@ int main(int argc, char *argv[])
             
             //Prepare sequence number
             sprintf(seq, "%3d", i);
-            printf("%d \n", i);
+            //printf("%d \n", i);
             
             //Payload Size and Flag
             //for final packet
@@ -197,6 +193,7 @@ int main(int argc, char *argv[])
             memcpy(payload, echoString + beginIndx, ECHOMAX);
             int headerSize = sizeof(head);
             int pktSize = ECHOMAX + headerSize;
+            //printf("%s\n",payload);
             
             //Prepare Packet
             char packet[pktSize];
@@ -207,6 +204,7 @@ int main(int argc, char *argv[])
             now = time(0);
             fprintf(logfile, "<SEND> <Packet #: %d> <LAR: %d> <LFS: %d> <Time: %ld>\n", atoi(seq), lar, atoi(seq)-1, now);
             numbytes = sendto(sock, packet, pktSize, 0, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr));
+            printf("SEND Packet #: %d\n", atoi(seq));
         }
         if (closingCount >= 10){
             printf("Final ACK Lost.....Closing!\n");
@@ -226,8 +224,8 @@ int main(int argc, char *argv[])
             fd_set set;
             
             //set timeout
-            tv.tv_sec = 1;
-            tv.tv_usec = 500000;
+            tv.tv_sec = 2;
+            tv.tv_usec = 0;
             FD_ZERO(&set);
             FD_SET(sock, &set);
             
@@ -255,18 +253,130 @@ int main(int argc, char *argv[])
                     }
                 }
                 else {
-                    alarm(0);
-                    //numbytes = recvfrom(sock, ack, sizeof(ack), 0, (struct sockaddr*)&echoServAddr, sizeof(echoServAddr));
-                    printf("ACK %s received.\n", ack);
                     memcpy(ack_seq_num, &ack[0], 3);
                     ack_seq_num[3] = '\0';
                     memcpy(ack_cum, &ack[4], 4);
                     
                     int ackNum = atoi(ack_seq_num);
                     int cumAckNum = atoi(ack_cum);
-                    printf("Received ACK %d and CumACK %d \n", ackNum, cumAckNum);
-                    if (ackNum == (i-1)){
-                        /*Prepare Packet*/
+                    //printf(".........Received ACK %d and CumACK %d \n", ackNum, cumAckNum-1);
+                    printf(".........Received ACK %d \n", cumAckNum-1);
+                    now = time(0);
+                    fprintf(logfile, "........... <RECEIVED> <ACK #: %d> <LAR: %d> <LFS: %d> <Time: %ld>\n", ackNum, lar, atoi(seq), now);
+                    if (i==numPacket && cumAckNum == numPacket){
+                        printf("Data Transfer Completed!\n");
+                        fclose(logfile);
+                        close(sock);
+                        exit(0);
+                    }
+                    
+                    if (i == numPacket && cumAckNum < numPacket && j > 0){
+                        //Prepare Packet
+                        //Clear buffer
+                        memset(&seq, 0, sizeof(seq));
+                        memset(&payloadSize, 0, sizeof(payloadSize));
+                        memset(&flag, 0, sizeof(flag));
+                        memset(&head, 0, sizeof(head));
+                        
+                        //Prepare sequence number
+                        sprintf(seq, "%3d", cumAckNum);
+                        //printf("%d \n", i);
+                        
+                        //Payload Size and Flag
+                        //for final packet
+                        if (cumAckNum == numPacket-1){
+                            //sprintf(seq, "%3d", lar+1+1);
+                            sprintf(payloadSize, "%4d", finalPktsize);
+                            strcpy(flag, "1");
+                            closingCount++;
+                        }
+                        //for other packets
+                        else{
+                            sprintf(payloadSize, "%4d", ECHOMAX);
+                            strcpy(flag, "0");
+                        }
+                        
+                        strcat(head, seq);
+                        strcat(head, payloadSize);
+                        strcat(head, flag);
+                        
+                        //Prepare Payload
+                        int beginIndx = cumAckNum*ECHOMAX;
+                        memset(&payload, 0, ECHOMAX);
+                        memcpy(payload, echoString + beginIndx, ECHOMAX);
+                        int headerSize = sizeof(head);
+                        int pktSize = ECHOMAX + headerSize;
+                        //printf("%s\n",payload);
+                        
+                        //Prepare Packet
+                        char packet[pktSize];
+                        memset(&packet, 0, pktSize);
+                        memcpy(&packet[0], head, headerSize);
+                        memcpy(&packet[9], payload, ECHOMAX);
+                        
+                        now = time(0);
+                        fprintf(logfile, "<RESEND> <Packet #: %d> <LAR: %d> <LFS: %d> <Time: %ld>\n", atoi(seq), lar, atoi(seq)-1, now);
+                        numbytes = sendto(sock, packet, pktSize, 0, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr));
+                        printf("RESEND Packet #: %d\n", atoi(seq));
+                        //i++;
+                    }
+                    
+                    //Resend the packet if ack = base-1 i.e. duplicate ack
+                    if (cumAckNum-1 == lar && cumAckNum < numPacket){
+                        j++;
+                        //Prepare Packet
+                        //Clear buffer
+                        memset(&seq, 0, sizeof(seq));
+                        memset(&payloadSize, 0, sizeof(payloadSize));
+                        memset(&flag, 0, sizeof(flag));
+                        memset(&head, 0, sizeof(head));
+                        
+                        //Prepare sequence number
+                        sprintf(seq, "%3d", cumAckNum);
+                        //printf("%d \n", i);
+                        
+                        //Payload Size and Flag
+                        //for final packet
+                        if (cumAckNum == numPacket-1){
+                            //sprintf(seq, "%3d", lar+1+1);
+                            sprintf(payloadSize, "%4d", finalPktsize);
+                            strcpy(flag, "1");
+                            closingCount++;
+                        }
+                        //for other packets
+                        else{
+                            sprintf(payloadSize, "%4d", ECHOMAX);
+                            strcpy(flag, "0");
+                        }
+                        
+                        strcat(head, seq);
+                        strcat(head, payloadSize);
+                        strcat(head, flag);
+                        
+                        //Prepare Payload
+                        int beginIndx = cumAckNum*ECHOMAX;
+                        memset(&payload, 0, ECHOMAX);
+                        memcpy(payload, echoString + beginIndx, ECHOMAX);
+                        int headerSize = sizeof(head);
+                        int pktSize = ECHOMAX + headerSize;
+                        //printf("%s\n",payload);
+                        
+                        //Prepare Packet
+                        char packet[pktSize];
+                        memset(&packet, 0, pktSize);
+                        memcpy(&packet[0], head, headerSize);
+                        memcpy(&packet[9], payload, ECHOMAX);
+                        
+                        now = time(0);
+                        fprintf(logfile, "<RESEND> <Packet #: %d> <LAR: %d> <LFS: %d> <Time: %ld>\n", atoi(seq), lar, atoi(seq)-1, now);
+                        numbytes = sendto(sock, packet, pktSize, 0, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr));
+                        printf("RESEND Packet #: %d\n", atoi(seq));
+                    }
+                    
+                    //Send the next packet if ack >= base
+                    if (cumAckNum-1 > lar && cumAckNum < numPacket && i < numPacket){
+                        lar++;
+                        //Prepare Packet
                         //Clear buffer
                         memset(&seq, 0, sizeof(seq));
                         memset(&payloadSize, 0, sizeof(payloadSize));
@@ -275,11 +385,12 @@ int main(int argc, char *argv[])
                         
                         //Prepare sequence number
                         sprintf(seq, "%3d", i);
-                        printf("%d \n", i);
+                        //printf("%d \n", i);
                         
                         //Payload Size and Flag
                         //for final packet
-                        if (i == numPacket){
+                        if (cumAckNum == numPacket-1 && i == numPacket-1){
+                            //sprintf(seq, "%3d", i);
                             sprintf(payloadSize, "%4d", finalPktsize);
                             strcpy(flag, "1");
                             closingCount++;
@@ -300,6 +411,7 @@ int main(int argc, char *argv[])
                         memcpy(payload, echoString + beginIndx, ECHOMAX);
                         int headerSize = sizeof(head);
                         int pktSize = ECHOMAX + headerSize;
+                        //printf("%s\n",payload);
                         
                         //Prepare Packet
                         char packet[pktSize];
@@ -308,58 +420,34 @@ int main(int argc, char *argv[])
                         memcpy(&packet[9], payload, ECHOMAX);
                         
                         now = time(0);
-                        fprintf(logfile, "<RESEND> <Packet #: %d> <LAR: %d> <LFS: %d> <Time: %ld>\n", atoi(seq), lar, atoi(seq)-1, now);
+                        fprintf(logfile, "<SEND> <Packet #: %d> <LAR: %d> <LFS: %d> <Time: %ld>\n", atoi(seq), lar, atoi(seq)-1, now);
                         numbytes = sendto(sock, packet, pktSize, 0, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr));
+                        printf("SEND Packet #: %d\n", atoi(seq));
+                        i++;
                     }
+                    //lar = cumAckNum - 1;
                     
-                    lar = cumAckNum - 1;
-                    now = time(0);
-                    fprintf(logfile, "........... <RECEIVED> <ACK #: %d> <LAR: %d> <LFS: %d> <Time: %ld>\n", ackNum, lar, atoi(seq), now);
-                    if (ackNum == numPacket){
-                        printf("Data Transfer Completed!\n");
-                        fclose(logfile);
-                        close(sock);
-                        exit(0);
-                    }
                 }
             }
             else{
-                printf("Timed out. Resend window!\n");
+                if (tries < MAXTRIES){
+                    tries +=1; //need to be checked at last
+                    printf("TIMEOUT. Resend window!\n");
+                    printf("%d more tries ...\n", MAXTRIES-tries);
+                    //sleep(1);
+                    //alarm(TIMEOUT_SECS);
+                }
+                else{
+                    printf("TIMEOUT. Closing the program...\n");
+                    DieWithError("No Response");
+                }
                 break;
             }
-            //break;
         }
     }
-    
-        /*if (errno == EINTR)     // Alarm went off
-        {
-            if (tries < MAXTRIES)      // incremented by signal handler
-            {
-                printf("timed out, %d more tries...\n", MAXTRIES-tries);
-                if (sendto(sock, echoString, echoStringLen, 0, (struct sockaddr *)
-                            &echoServAddr, sizeof(echoServAddr)) != echoStringLen)
-                    DieWithError("sendto() failed");
-                alarm(TIMEOUT_SECS);
-            }
-            else
-                DieWithError("No Response");
-        }
-        else
-            DieWithError("recvfrom() failed");
-
-    // recvfrom() got something --  cancel the timeout
-    alarm(0);
-
-    // null-terminate the received data
-    echoBuffer[respStringLen] = '\0';
-    printf("Received: %s\n", echoBuffer);    // Print the received data
-        
-    close(sock);
-    exit(0);*/
 }
 
 void CatchAlarm(int ignored)     /* Handler for SIGALRM */
 {
     tries += 1;
-    //printf("Caught an Alarm! Tries is increased: %d", tries);
 }
