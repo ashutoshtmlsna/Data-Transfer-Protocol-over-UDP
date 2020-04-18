@@ -1,0 +1,22 @@
+<SEND> <Packet #: 0> <LAR: -1> <LFS: -1> <Time: 1587158150>
+<SEND> <Packet #: 1> <LAR: -1> <LFS: 0> <Time: 1587158150>
+<SEND> <Packet #: 2> <LAR: -1> <LFS: 1> <Time: 1587158150>
+<SEND> <Packet #: 3> <LAR: -1> <LFS: 2> <Time: 1587158150>
+........... <RECEIVED> <ACK #: 0> <LAR: 0> <LFS: 3> <Time: 1587158150>
+........... <RECEIVED> <ACK #: 1> <LAR: 1> <LFS: 3> <Time: 1587158150>
+........... <RECEIVED> <ACK #: 2> <LAR: 2> <LFS: 3> <Time: 1587158150>
+........... <RECEIVED> <ACK #: 3> <LAR: 3> <LFS: 3> <Time: 1587158150>
+<SEND> <Packet #: 4> <LAR: 3> <LFS: 3> <Time: 1587158151>
+<SEND> <Packet #: 5> <LAR: 3> <LFS: 4> <Time: 1587158151>
+<SEND> <Packet #: 6> <LAR: 3> <LFS: 5> <Time: 1587158151>
+<SEND> <Packet #: 7> <LAR: 3> <LFS: 6> <Time: 1587158151>
+........... <RECEIVED> <ACK #: 4> <LAR: 4> <LFS: 7> <Time: 1587158151>
+........... <RECEIVED> <ACK #: 5> <LAR: 5> <LFS: 7> <Time: 1587158151>
+........... <RECEIVED> <ACK #: 6> <LAR: 6> <LFS: 7> <Time: 1587158151>
+........... <RECEIVED> <ACK #: 7> <LAR: 7> <LFS: 7> <Time: 1587158151>
+<SEND> <Packet #: 8> <LAR: 7> <LFS: 7> <Time: 1587158153>
+<SEND> <Packet #: 9> <LAR: 7> <LFS: 8> <Time: 1587158153>
+<SEND> <Packet #: 10> <LAR: 7> <LFS: 9> <Time: 1587158153>
+........... <RECEIVED> <ACK #: 8> <LAR: 8> <LFS: 10> <Time: 1587158153>
+........... <RECEIVED> <ACK #: 9> <LAR: 9> <LFS: 10> <Time: 1587158153>
+........... <RECEIVED> <ACK #: 10> <LAR: 10> <LFS: 10> <Time: 1587158153>

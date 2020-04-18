@@ -25,11 +25,12 @@ int main(int argc, char *argv[])
     char echoBuffer[ECHOMAX];        /* Buffer for echo string, replaced by rcvMsg */
     unsigned short echoServPort;     /* Server port */
     int recvMsgSize;                 /* Size of received message */
-    int dropNum[3];
+    int dropNum[10];
+    int c = 0;
 
-    if ((argc > 5)||(argc < 2))         /* Test for correct number of parameters */
+    if ((argc > 12)||(argc < 2))         /* Test for correct number of parameters */
     {
-        fprintf(stderr,"Usage:  %s <SERVER PORT> <FORCE DROP NUMBERS(upto 3)>\n", argv[0]);
+        fprintf(stderr,"Usage:  %s <SERVER PORT> <FORCE DROP NUMBERS(upto 10)>\n", argv[0]);
         exit(1);
     }
 
@@ -53,6 +54,8 @@ int main(int argc, char *argv[])
     echoServAddr.sin_family = AF_INET;                /* Internet address family */
     echoServAddr.sin_addr.s_addr = htonl(INADDR_ANY); /* Any incoming interface */
     echoServAddr.sin_port = htons(echoServPort);      /* Local port */
+    
+    memset(&echoClntAddr, 0, sizeof(echoClntAddr));   /* Zero out structure */
 
     /* Bind to the local address */
     if (bind(sock, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr)) < 0)
@@ -76,6 +79,7 @@ int main(int argc, char *argv[])
     
     int rws = 9;    //receive window size
     int lfr = -1;   //last frame received
+    //int * p = dropNum;
     
     while(1){
         /* Receive message from client */
@@ -100,33 +104,15 @@ int main(int argc, char *argv[])
         
         //Strip Payload
         memcpy(payload, &rcvMsg[9], 1024);
-        
         int frameNum = atoi(seqNum);
         int payloadSizeNum = atoi(payloadSize);
         int lastPkt = atoi(flag);
         int ack;
         int ack_cum;
-        printf(".......Received Packet #: %d\n", frameNum);
         
-        now = time(0);
-        fprintf(logfile, "<Received> <Seq #: %d> <LFR: %d> <LAF:%d> <Time: %ld>\n", frameNum, lfr, ack_cum, now);
-        
-        /* Processing Packet*/
-        if (frameNum >= lfr && frameNum <= lfr+1+rws){
-            cumAckWindow[frameNum] = 1;
-            memcpy(&file[frameNum*1024], payload, payloadSizeNum);
-            ack = frameNum;
-            
-            int i = 0;
-            for (i=0; i < sizeof(cumAckWindow)/sizeof(int); i++){
-                if (cumAckWindow[i] == 0){
-                    ack_cum = i;
-                    break;
-                }
-            }
-            lfr = ack_cum -1;
-        }
-        else{
+        //Check if the packet is to be dropped
+        if (atoi(seqNum) == dropNum[c]) && (c < 10){
+            c += 1;
             int i = 0;
             for (i=0; i < sizeof(cumAckWindow)/sizeof(int); i++){
                 if (cumAckWindow[i] == 0){
@@ -137,6 +123,39 @@ int main(int argc, char *argv[])
             ack = lfr;
         }
         
+        else{
+            printf(".......Received Packet #: %d\n", frameNum);
+            
+            now = time(0);
+            fprintf(logfile, "<Received> <Seq #: %d> <LFR: %d> <LAF:%d> <Time: %ld>\n", frameNum, lfr, ack_cum, now);
+            
+            /* Processing Packet*/
+            if (frameNum >= lfr && frameNum <= lfr+1+rws){
+                cumAckWindow[frameNum] = 1;
+                memcpy(&file[frameNum*1024], payload, payloadSizeNum);
+                ack = frameNum;
+                
+                int i = 0;
+                for (i=0; i < sizeof(cumAckWindow)/sizeof(int); i++){
+                    if (cumAckWindow[i] == 0){
+                        ack_cum = i;
+                        break;
+                    }
+                }
+                lfr = ack_cum -1;
+            }
+            else{
+                int i = 0;
+                for (i=0; i < sizeof(cumAckWindow)/sizeof(int); i++){
+                    if (cumAckWindow[i] == 0){
+                        ack_cum = i;
+                        break;
+                    }
+                }
+                ack = lfr;
+            }
+        }
+        
         /* Prepare ACK */
         char ack_copy[4];
         char ack_cum_copy[4];
@@ -145,12 +164,17 @@ int main(int argc, char *argv[])
         sprintf(ack_cum_copy, "%3d", ack_cum);
         strcpy(ackmsg, ack_copy);
         strcat(ackmsg, ack_cum_copy);
-        printf("ACK: %s\n", ackmsg);
+        printf("ACK: %s sent to %s \n", ackmsg, inet_ntoa(echoClntAddr.sin_addr));
         
         now = time(0);
         fprintf(logfile, "<SEND> <ACK #: %d> <LFR: %d> <LAF: %d> <Time: %ld>\n", frameNum, lfr, ack_cum, now);
         
-        numBytes = sendto(sock, ackmsg, sizeof(ackmsg), 0, (struct sockaddr *) &echoClntAddr, cliAddrLen);
+        if (sendto(sock, ackmsg, sizeof(ackmsg), 0,
+                              (struct sockaddr *) &echoClntAddr, sizeof(echoClntAddr)) != sizeof(ackmsg)){
+            DieWithError("sendto() sent a different number of bytes than expected");
+            
+        }
+        //numBytes = sendto(sock, ackmsg, sizeof(ackmsg), 0, (struct sockaddr *) &echoClntAddr, &cliAddrLen);
         
         if (lastPkt == 1){
             printf("Last Packet Received.\n");
@@ -167,25 +191,7 @@ int main(int argc, char *argv[])
             break;
         }
     }
-    
-    /*for (;;) /* Run forever
-    {
-        /* Set the size of the in-out parameter
-        cliAddrLen = sizeof(echoClntAddr);
-
-        /* Block until receive message from a client
-        if ((recvMsgSize = recvfrom(sock, echoBuffer, ECHOMAX, 0,
-            (struct sockaddr *) &echoClntAddr, &cliAddrLen)) < 0)
-            DieWithError("recvfrom() failed");
-
-        printf("Handling client %s\n", inet_ntoa(echoClntAddr.sin_addr));
-
-        /* Send received datagram back to the client
-        if (sendto(sock, echoBuffer, recvMsgSize, 0,
-             (struct sockaddr *) &echoClntAddr, sizeof(echoClntAddr)) != recvMsgSize)
-            DieWithError("sendto() sent a different number of bytes than expected");
-    }*/
-    /* NOT REACHED */
+    /* Task Completed, Close Socket and Exit */
     close(sock);
     return 0;
 }
