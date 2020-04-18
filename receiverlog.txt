@@ -1,6 +1,22 @@
-<Received> <Seq #: 0> <LFR: -1> <LAF:0> <Time: 1586683105>
-<SEND> <ACK #: 0> <LFR: 0> <LAF: 1> <Time: 1586683105>
-<Received> <Seq #: 1> <LFR: 0> <LAF:1> <Time: 1586683105>
-<SEND> <ACK #: 1> <LFR: 1> <LAF: 2> <Time: 1586683105>
-<Received> <Seq #: 2> <LFR: 1> <LAF:2> <Time: 1586683105>
-<SEND> <ACK #: 2> <LFR: 2> <LAF: 3> <Time: 1586683105>
+<Received> <Seq #: 0> <LFR: -1> <LAF:0> <Time: 1587158150>
+<SEND> <ACK #: 0> <LFR: 0> <LAF: 1> <Time: 1587158150>
+<Received> <Seq #: 1> <LFR: 0> <LAF:1> <Time: 1587158150>
+<SEND> <ACK #: 1> <LFR: 1> <LAF: 2> <Time: 1587158150>
+<Received> <Seq #: 2> <LFR: 1> <LAF:2> <Time: 1587158150>
+<SEND> <ACK #: 2> <LFR: 2> <LAF: 3> <Time: 1587158150>
+<Received> <Seq #: 3> <LFR: 2> <LAF:3> <Time: 1587158150>
+<SEND> <ACK #: 3> <LFR: 3> <LAF: 4> <Time: 1587158150>
+<Received> <Seq #: 4> <LFR: 3> <LAF:4> <Time: 1587158151>
+<SEND> <ACK #: 4> <LFR: 4> <LAF: 5> <Time: 1587158151>
+<Received> <Seq #: 5> <LFR: 4> <LAF:5> <Time: 1587158151>
+<SEND> <ACK #: 5> <LFR: 5> <LAF: 6> <Time: 1587158151>
+<Received> <Seq #: 6> <LFR: 5> <LAF:6> <Time: 1587158151>
+<SEND> <ACK #: 6> <LFR: 6> <LAF: 7> <Time: 1587158151>
+<Received> <Seq #: 7> <LFR: 6> <LAF:7> <Time: 1587158151>
+<SEND> <ACK #: 7> <LFR: 7> <LAF: 8> <Time: 1587158151>
+<Received> <Seq #: 8> <LFR: 7> <LAF:8> <Time: 1587158153>
+<SEND> <ACK #: 8> <LFR: 8> <LAF: 9> <Time: 1587158153>
+<Received> <Seq #: 9> <LFR: 8> <LAF:9> <Time: 1587158153>
+<SEND> <ACK #: 9> <LFR: 9> <LAF: 10> <Time: 1587158153>
+<Received> <Seq #: 10> <LFR: 9> <LAF:10> <Time: 1587158153>
+<SEND> <ACK #: 10> <LFR: 10> <LAF: 11> <Time: 1587158153>

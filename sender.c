@@ -7,9 +7,9 @@
 
 #include "sender.h"
 
-#define ECHOMAX         1024     /* Longest string to echo */
-#define TIMEOUT_SECS    4       /* Seconds between retransmits */
-#define MAXTRIES        5       /* Tries before giving up */
+#define ECHOMAX         8 //1024     /* Longest string to echo */
+#define TIMEOUT_SECS    2       /* Seconds between retransmits */
+#define MAXTRIES        35       /* Tries before giving up */
 
 int tries=0;   /* Count of times sent - GLOBAL for signal-handler access */
 
@@ -65,6 +65,7 @@ int main(int argc, char *argv[])
     struct sockaddr_in fromAddr;     /* Source address of echo */
     unsigned short echoServPort;     /* Echo server port */
     unsigned int fromSize;           /* In-out of address size for recvfrom() */
+    socklen_t servAddrSize;
     struct sigaction myAction;       /* For setting signal handler */
     char *servIP;                    /* IP address of server */
     char *echoString;                /* String to send to echo server */
@@ -121,16 +122,18 @@ int main(int argc, char *argv[])
     /* Construct the server address structure */
     memset(&echoServAddr, 0, sizeof(echoServAddr));    /* Zero out structure */
     echoServAddr.sin_family = AF_INET;
-    echoServAddr.sin_addr.s_addr = inet_addr(servIP);  /* Server IP address */
+    echoServAddr.sin_addr.s_addr = inet_addr(servIP);  /* Server IP address,127.0.0.1 */
     echoServAddr.sin_port = htons(echoServPort);       /* Server port */
     
-    /* Construct the client address structure */
+    /* Construct the client address structure*/
     memset(&fromAddr, 0, sizeof(fromAddr));
     fromAddr.sin_family = AF_INET;
-    fromAddr.sin_addr.s_addr = INADDR_ANY;  /* Client IP address, 127.0.0.1 for same machine: localhost*/
-    fromAddr.sin_port = htons(0);       /* Server port */
+    fromAddr.sin_addr.s_addr = htonl(INADDR_ANY);  /* Client IP address, localhost */
+    fromAddr.sin_port = htons(0);       /* Server port*/
     
-    /* Start thread to listen to ACK */
+    /* Bind to the local address*/
+      if (bind(sock, (struct sockaddr *) &fromAddr, sizeof(fromAddr)) < 0)
+          DieWithError("bind() failed");
     
     
     /* Sliding Window Init */
@@ -138,8 +141,8 @@ int main(int argc, char *argv[])
     int numbytes = -1;  //number of bytes sent
     int sws = 4;        //window size
     int lar = -1;       //Last Ack Received
-    int numPacket = (sizeof(echoString) / 8) + 1;
-    int finalPktsize = sizeof(echoString) % 8;
+    int numPacket = 10;  //(sizeof(echoString) / 8) + 1;
+    int finalPktsize = ECHOMAX; //sizeof(echoString) % 8;
     int i = 0;
     
     char seq[4]; //seq number
@@ -157,9 +160,9 @@ int main(int argc, char *argv[])
     /* Get a response */
     
     fromSize = sizeof(fromAddr);
-    alarm(TIMEOUT_SECS);        /* Set the timeout */
+    
     while (1){
-        for (i = lar+1; i < sws && i <= numPacket; i++){
+        for (i = lar+1; i <= (lar + sws) && i <= numPacket; i++){
             /*Prepare Packet*/
             //Clear buffer
             memset(&seq, 0, sizeof(seq));
@@ -169,6 +172,7 @@ int main(int argc, char *argv[])
             
             //Prepare sequence number
             sprintf(seq, "%3d", i);
+            printf("%d \n", i);
             
             //Payload Size and Flag
             //for final packet
@@ -212,6 +216,8 @@ int main(int argc, char *argv[])
         char ack[7];
         char ack_cum[4];
         char ack_seq_num[4];
+        
+        //alarm(TIMEOUT_SECS);        /* Set the timeout */
 
         /* Listen for ack from reciever */
         while (1) {
@@ -220,7 +226,7 @@ int main(int argc, char *argv[])
             fd_set set;
             
             //set timeout
-            tv.tv_sec = 0;
+            tv.tv_sec = 1;
             tv.tv_usec = 500000;
             FD_ZERO(&set);
             FD_SET(sock, &set);
@@ -235,33 +241,93 @@ int main(int argc, char *argv[])
             }
             
             if (FD_ISSET(sock, &set)){
-                if (tries > MAXTRIES){
-                    DieWithError("No Response");
-                }
                 //ACK processing
-                numbytes = recvfrom(sock, ack, sizeof(ack), 0, (struct sockaddr*)&echoServAddr, sizeof(echoServAddr));
-                printf("ACK %s received.\n", ack);
-                memcpy(ack_seq_num, &ack[0], 3);
-                ack_seq_num[3] = '\0';
-                memcpy(ack_cum, &ack[4], 4);
-                
-                int ackNum = atoi(ack_seq_num);
-                int cumAckNum = atoi(ack_cum);
-                printf("Received ACK %d and CumACK %d \n", ackNum, cumAckNum);
-                lar = cumAckNum - 1;
-                now = time(0);
-                fprintf(logfile, "........... <RECEIVED> <ACK #: %d> <LAR: %d> <LFS: %d> <Time: %ld>\n", ackNum, lar, atoi(seq), now);
-                if (ackNum == numPacket){
-                    printf("Data Transfer Completed!\n");
-                    fclose(logfile);
-                    exit(0);
+                if (recvfrom(sock, (char *) ack, sizeof(ack), 0, (struct sockaddr*)&echoServAddr, &servAddrSize) < 0){
+                    if (tries < MAXTRIES){
+                        tries +=1; //need to be checked at last
+                        printf("Timed Out. %d more tries ...\n", MAXTRIES-tries);
+                        //sleep(1);
+                        //alarm(TIMEOUT_SECS);
+                    }
+                    else{
+                        printf("TIMEOUT. Resend the packet.\n");
+                        DieWithError("No Response");
+                    }
                 }
-                
+                else {
+                    alarm(0);
+                    //numbytes = recvfrom(sock, ack, sizeof(ack), 0, (struct sockaddr*)&echoServAddr, sizeof(echoServAddr));
+                    printf("ACK %s received.\n", ack);
+                    memcpy(ack_seq_num, &ack[0], 3);
+                    ack_seq_num[3] = '\0';
+                    memcpy(ack_cum, &ack[4], 4);
+                    
+                    int ackNum = atoi(ack_seq_num);
+                    int cumAckNum = atoi(ack_cum);
+                    printf("Received ACK %d and CumACK %d \n", ackNum, cumAckNum);
+                    if (ackNum == (i-1)){
+                        /*Prepare Packet*/
+                        //Clear buffer
+                        memset(&seq, 0, sizeof(seq));
+                        memset(&payloadSize, 0, sizeof(payloadSize));
+                        memset(&flag, 0, sizeof(flag));
+                        memset(&head, 0, sizeof(head));
+                        
+                        //Prepare sequence number
+                        sprintf(seq, "%3d", i);
+                        printf("%d \n", i);
+                        
+                        //Payload Size and Flag
+                        //for final packet
+                        if (i == numPacket){
+                            sprintf(payloadSize, "%4d", finalPktsize);
+                            strcpy(flag, "1");
+                            closingCount++;
+                        }
+                        //for other packets
+                        else{
+                            sprintf(payloadSize, "%4d", ECHOMAX);
+                            strcpy(flag, "0");
+                        }
+                        
+                        strcat(head, seq);
+                        strcat(head, payloadSize);
+                        strcat(head, flag);
+                        
+                        //Prepare Payload
+                        int beginIndx = i*ECHOMAX;
+                        memset(&payload, 0, ECHOMAX);
+                        memcpy(payload, echoString + beginIndx, ECHOMAX);
+                        int headerSize = sizeof(head);
+                        int pktSize = ECHOMAX + headerSize;
+                        
+                        //Prepare Packet
+                        char packet[pktSize];
+                        memset(&packet, 0, pktSize);
+                        memcpy(&packet[0], head, headerSize);
+                        memcpy(&packet[9], payload, ECHOMAX);
+                        
+                        now = time(0);
+                        fprintf(logfile, "<RESEND> <Packet #: %d> <LAR: %d> <LFS: %d> <Time: %ld>\n", atoi(seq), lar, atoi(seq)-1, now);
+                        numbytes = sendto(sock, packet, pktSize, 0, (struct sockaddr *) &echoServAddr, sizeof(echoServAddr));
+                    }
+                    
+                    lar = cumAckNum - 1;
+                    now = time(0);
+                    fprintf(logfile, "........... <RECEIVED> <ACK #: %d> <LAR: %d> <LFS: %d> <Time: %ld>\n", ackNum, lar, atoi(seq), now);
+                    if (ackNum == numPacket){
+                        printf("Data Transfer Completed!\n");
+                        fclose(logfile);
+                        close(sock);
+                        exit(0);
+                    }
+                }
             }
             else{
-                printf("TIMEOUT. Resend the packet.\n");
+                printf("Timed out. Resend window!\n");
                 break;
             }
+            //break;
         }
     }
     
@@ -295,4 +361,5 @@ int main(int argc, char *argv[])
 void CatchAlarm(int ignored)     /* Handler for SIGALRM */
 {
     tries += 1;
+    //printf("Caught an Alarm! Tries is increased: %d", tries);
 }
