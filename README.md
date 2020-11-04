@@ -1,8 +1,6 @@
 # Reliable-Data-Transfer-Protocol-using-Sliding-Window
 
 Author: Ashutosh Timilsina  
-CS571:Computer Networks  
-Programming Assignment 2
 
 ## Description  
 This program implements the sliding window protocol by transferring a string 80 characters or less from a client to a server despite possible packet loss. There are two programs one for client and another for server in this project. The programs are written in C. `sender.c` serves for the client and `receiver.c` serves for the receiver/server side. It is achieved through sliding windows at both client and the server side and packet timeouts is also considered when the client does not receive an ack from the server. The server will buffer packets that are out of order.
